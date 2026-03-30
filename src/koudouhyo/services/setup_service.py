@@ -29,17 +29,13 @@ def is_running_from_unc() -> bool:
     return Path(sys.executable).drive == ""  # UNC paths have no drive letter
 
 
-def is_running_from_current(app_settings: AppSettings) -> bool:
-    """Return True if this exe is running from app\\current\\ on the shared folder."""
+def needs_initial_deploy(app_settings: AppSettings) -> bool:
+    """Return True if Koudouhyo.exe does not yet exist in app\\current\\ on the shared folder."""
     if not getattr(sys, "frozen", False):
         return False
-    exe_path = Path(sys.executable).resolve()
-    current_path = (Path(app_settings.shared_root) / "app" / "current").resolve()
-    try:
-        exe_path.relative_to(current_path)
-        return True
-    except ValueError:
-        return False
+    exe_name = Path(sys.executable).name
+    current_exe = Path(app_settings.shared_root) / "app" / "current" / exe_name
+    return not current_exe.exists()
 
 
 def deploy_to_current(app_settings: AppSettings) -> None:

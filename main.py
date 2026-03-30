@@ -13,7 +13,7 @@ def main():
     from koudouhyo.services.setup_service import (
         ensure_shared_dirs,
         is_running_from_unc,
-        is_running_from_current,
+        needs_initial_deploy,
         deploy_to_current,
         apply_pending_update,
         stage_update,
@@ -68,9 +68,9 @@ def main():
         )
         sys.exit(1)
 
-    # --- 初回セットアップ: app\current\ へ配布用exeをコピー ---
+    # --- 初回セットアップ: app\current\ に exe がなければ配布用コピーを促す ---
     # （共有フォルダのapp\current\はあくまで配布置き場。実行はローカルから）
-    if not is_running_from_current(app_settings):
+    if needs_initial_deploy(app_settings):
         root = tk.Tk()
         root.withdraw()
         answer = mb.askyesno(
