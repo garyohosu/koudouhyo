@@ -8,6 +8,8 @@
 - DB は共有サーバー上に配置する
 - 更新頻度は低く、編集時はロック機能を使用する
 - 現在状態と履歴を分離して管理する
+- SQLite接続時に毎回 `PRAGMA foreign_keys = ON` を実行し、外部キー制約を有効化する
+- journal_mode は WAL を使用せず DELETE または TRUNCATE を前提とする（ネットワーク共有対応）
 
 ## 2. テーブル一覧
 
@@ -59,7 +61,8 @@
 ### 4.3 備考
 
 - 1社員につき1レコードを基本とする
-- employee_master と外部キー相当で関連付ける
+- employee_id は employee_master.id を参照する外部キーとする
+- 社員マスタに新規社員を追加した際は、current_status に初期レコード（出社中・在席・行先空・備考空）を自動作成する
 
 ## 5. status_history
 
@@ -117,7 +120,8 @@ CREATE TABLE current_status (
     destination TEXT,
     note TEXT,
     updated_by TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (employee_id) REFERENCES employee_master(id)
 );
 
 CREATE TABLE status_history (
@@ -132,7 +136,8 @@ CREATE TABLE status_history (
     old_note TEXT,
     new_note TEXT,
     updated_by TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (employee_id) REFERENCES employee_master(id)
 );
 
 CREATE TABLE app_config (
@@ -165,6 +170,7 @@ ON status_history(updated_at);
 - 更新前の情報は status_history に保存する
 - 内線番号は employee_master の固定情報として扱う
 - 出社状態と所在状態は分離して保持する
+- 社員の削除は物理削除せず is_active=0 の論理削除とする（外部キー整合性維持のため）
 
 ## 10. スキーマバージョン管理
 
