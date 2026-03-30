@@ -50,7 +50,7 @@
 ### 4.2 カラム
 
 - id INTEGER PRIMARY KEY
-- employee_id INTEGER NOT NULL
+- employee_id INTEGER NOT NULL UNIQUE
 - attendance_status TEXT NOT NULL
 - location_status TEXT NOT NULL
 - destination TEXT
@@ -61,6 +61,7 @@
 ### 4.3 備考
 
 - 1社員につき1レコードを基本とする
+- current_status.employee_id には UNIQUE 制約を付与し、1社員1レコードをDBでも保証する
 - employee_id は employee_master.id を参照する外部キーとする
 - 社員マスタに新規社員を追加した際は、current_status に初期レコード（出社中・在席・行先空・備考空）を自動作成する
 
@@ -114,7 +115,7 @@ CREATE TABLE employee_master (
 
 CREATE TABLE current_status (
     id INTEGER PRIMARY KEY,
-    employee_id INTEGER NOT NULL,
+    employee_id INTEGER NOT NULL UNIQUE,
     attendance_status TEXT NOT NULL,
     location_status TEXT NOT NULL,
     destination TEXT,
@@ -154,9 +155,6 @@ CREATE TABLE app_config (
 CREATE INDEX idx_employee_master_display_order
 ON employee_master(display_order);
 
-CREATE INDEX idx_current_status_employee_id
-ON current_status(employee_id);
-
 CREATE INDEX idx_status_history_employee_id
 ON status_history(employee_id);
 
@@ -167,9 +165,11 @@ ON status_history(updated_at);
 ## 9. データ更新方針
 
 - current_status は最新状態のみ保持する
+- current_status は1社員につき1レコードのみ保持する
 - 更新前の情報は status_history に保存する
 - 内線番号は employee_master の固定情報として扱う
 - 出社状態と所在状態は分離して保持する
+- current_status の更新は INSERT ではなく既存レコードに対する UPDATE を基本とする
 - 社員の削除は物理削除せず is_active=0 の論理削除とする（外部キー整合性維持のため）
 
 ## 10. スキーマバージョン管理
