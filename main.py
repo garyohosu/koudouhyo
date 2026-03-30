@@ -16,6 +16,8 @@ def main():
         is_running_from_unc,
         needs_deploy,
         deploy_to_current,
+        check_server_update,
+        stage_server_update,
         apply_pending_update,
         stage_update,
     )
@@ -106,7 +108,29 @@ def main():
                 root2.destroy()
         sys.exit(0)
 
-    # --- バージョン確認（ユーザー向け自動更新） ---
+    # --- サーバー版がローカルより新しければ自動更新 ---
+    server_ver = check_server_update(app_settings, APP_VERSION)
+    if server_ver:
+        root_tmp = tk.Tk()
+        root_tmp.withdraw()
+        answer = mb.askyesno(
+            "アップデートあり",
+            f"サーバーに新しいバージョン v{server_ver} があります。\n"
+            f"（現在のバージョン: v{APP_VERSION}）\n\n"
+            f"今すぐ更新して再起動しますか？"
+        )
+        root_tmp.destroy()
+        if answer:
+            try:
+                stage_server_update(app_settings)
+                apply_pending_update()  # _new.exe を bat でスワップして再起動・終了
+            except Exception as e:
+                root_tmp2 = tk.Tk()
+                root_tmp2.withdraw()
+                mb.showerror("更新エラー", f"サーバーからの取得に失敗しました:\n{e}")
+                root_tmp2.destroy()
+
+    # --- latest.json によるバージョン確認（将来の releases 運用向け） ---
     version_checker = VersionChecker(app_settings.update_json_path, APP_VERSION)
     result = version_checker.check()
     if result.has_update and result.latest:

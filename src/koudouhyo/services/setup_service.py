@@ -61,6 +61,30 @@ def is_running_from_unc() -> bool:
     return Path(sys.executable).drive == ""  # UNC paths have no drive letter
 
 
+def check_server_update(app_settings: AppSettings, local_version: str) -> Optional[str]:
+    """Return server version string if server is newer than local, else None."""
+    if not getattr(sys, "frozen", False):
+        return None
+    server_version = _get_deployed_version(app_settings)
+    if server_version is None:
+        return None
+    try:
+        if _parse_version(server_version) > _parse_version(local_version):
+            return server_version
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
+def stage_server_update(app_settings: AppSettings) -> None:
+    """Copy app\\current\\Koudouhyo.exe from server to local folder as _new.exe."""
+    if not getattr(sys, "frozen", False):
+        return
+    exe_name = Path(sys.executable).name
+    src = Path(app_settings.shared_root) / "app" / "current" / exe_name
+    stage_update(str(src))
+
+
 def needs_deploy(app_settings: AppSettings, local_version: str) -> bool:
     """Return True if this exe should be deployed to app\\current\\.
 
