@@ -202,6 +202,8 @@ MDファイルのレビューで生じた不明点・確認事項と回答。
 | config.json 配置場所 | `app\current\config.json`（管理者のみ書き換え） |
 | ハートビート実装 | 専用バックグラウンドスレッド（停止イベント付き） |
 | DBアクセス層 | 軽量なRepositoryパターン（ORM不使用） |
+| 管理画面認可判定 | MainWindow が `admin_users` を参照して判定 |
+| 更新系ユースケース集約 | `StatusService` / `AdminService` に集約 |
 
 ---
 
@@ -377,3 +379,29 @@ MDファイルのレビューで生じた不明点・確認事項と回答。
 - 初版では軽量なRepositoryパターンを採用する。
 - SQLはRepositoryクラス内に集約し、UI層から直接SQLを実行しない。
 - 過度な抽象化は行わず、小規模アプリに適した薄い実装とする。
+
+---
+
+## Q26. 管理画面を開ける利用者の判定はどこで行うか？
+
+**対象**: CLASS.md MainWindow / AdminWindow、SPEC.md §15.1
+
+**回答**: 初版では **MainWindow が `AppSettings.admin_users` を参照して判定** する。
+
+**仕様追記**:
+- 管理画面起動可否は `MainWindow` で判定する。
+- `MainWindow` は `AppSettings` と `UserContext` を参照し、`user_ctx.windows_user_name in app_settings.admin_users` の場合のみ `AdminWindow` を開く。
+- 権限が無い場合は管理画面を開かず、メッセージを表示する。
+
+---
+
+## Q27. 状態更新や社員マスタ更新のオーケストレーションは UI 層ではなく専用サービスにまとめるか？
+
+**対象**: CLASS.md データアクセス層・サービス層・UI層、SEQUENCE.md UC-03 / UC-05
+
+**回答**: **まとめる**。初版でも更新系ユースケースは専用サービスに集約する。
+
+**仕様追記**:
+- 初版でも更新系ユースケースは専用サービスクラスに集約する。
+- 状態更新は `StatusService`、社員マスタ更新は `AdminService` が担当する。
+- UI層は入力受付、表示更新、メッセージ表示に専念し、ロック制御・トランザクション制御・履歴保存・バックアップ実行などの業務フローはサービス層で実施する。

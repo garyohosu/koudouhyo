@@ -68,7 +68,7 @@ classDiagram
 
     class AttendanceStatus {
         <<enumeration>>
-        在席中
+        出社中
         退社済み
     }
 
@@ -119,9 +119,10 @@ classDiagram
         -DatabaseManager db
         +get_all_current() list~CurrentStatus~
         +get_by_employee_id(int) CurrentStatus
-        +update_status(CurrentStatus, str) None
-        +insert_history(StatusHistory) None
-        +update_with_history(CurrentStatus) None
+        +save_status_change(CurrentStatus) None
+        +create_initial_status(int, str) None
+        -_insert_history(StatusHistory) None
+        -_update_current(CurrentStatus) None
     }
 
     class AppConfigRepository {
@@ -220,6 +221,21 @@ classDiagram
         -_apply_migrations(str) None
     }
 
+    class StatusService {
+        -StatusRepository status_repo
+        -LockManager lock_mgr
+        -UserContext user_ctx
+        +change_status(int, AttendanceStatus, LocationStatus, str, str) None
+    }
+
+    class AdminService {
+        -EmployeeRepository emp_repo
+        -StatusRepository status_repo
+        -BackupManager backup_mgr
+        -LockManager lock_mgr
+        +save_employee(EmployeeMaster, bool) None
+    }
+
     ConfigLoader --> AppSettings : creates
     LockManager --> UserContext : uses
     LockManager ..> LockInfo : creates
@@ -227,6 +243,13 @@ classDiagram
     VersionChecker ..> VersionInfo : creates
     MigrationManager --> DatabaseManager : uses
     MigrationManager --> AppConfigRepository : uses
+    StatusService --> StatusRepository : uses
+    StatusService --> LockManager : uses
+    StatusService --> UserContext : uses
+    AdminService --> EmployeeRepository : uses
+    AdminService --> StatusRepository : uses
+    AdminService --> BackupManager : uses
+    AdminService --> LockManager : uses
 ```
 
 ---
@@ -236,6 +259,7 @@ classDiagram
 ```mermaid
 classDiagram
     class MainWindow {
+        -AppSettings app_settings
         -EmployeeRepository emp_repo
         -StatusRepository status_repo
         -LockManager lock_mgr
@@ -244,6 +268,7 @@ classDiagram
         +refresh() None
         -_on_edit_click() None
         -_on_admin_click() None
+        -_can_open_admin() bool
         -_on_search(str) None
         -_render_rows(list) None
         -_get_row_bg_color(AttendanceStatus) str
@@ -253,8 +278,7 @@ classDiagram
     class EditWindow {
         -EmployeeRepository emp_repo
         -StatusRepository status_repo
-        -LockManager lock_mgr
-        -UserContext user_ctx
+        -StatusService status_service
         +show() None
         -_on_save() None
         -_on_cancel() None
@@ -264,9 +288,7 @@ classDiagram
 
     class AdminWindow {
         -EmployeeRepository emp_repo
-        -StatusRepository status_repo
-        -BackupManager backup_mgr
-        -LockManager lock_mgr
+        -AdminService admin_service
         +show() None
         -_on_save(EmployeeMaster) None
         -_on_add() None
@@ -297,6 +319,8 @@ classDiagram
     class BackupManager
     class VersionChecker
     class MigrationManager
+    class StatusService
+    class AdminService
     class EmployeeRepository
     class StatusRepository
     class AppConfigRepository
@@ -315,21 +339,27 @@ classDiagram
     AppSettings <-- LockManager
     AppSettings <-- BackupManager
     AppSettings <-- VersionChecker
+    AppSettings <-- MainWindow
 
     UserContext <-- LockManager
     UserContext <-- MainWindow
-    UserContext <-- EditWindow
 
     LockManager <-- MainWindow
-    LockManager <-- EditWindow
-    LockManager <-- AdminWindow
 
     EmployeeRepository <-- MainWindow
     EmployeeRepository <-- EditWindow
     EmployeeRepository <-- AdminWindow
     StatusRepository <-- MainWindow
     StatusRepository <-- EditWindow
-    BackupManager <-- AdminWindow
+    StatusRepository <-- StatusService
+    StatusRepository <-- AdminService
+    EmployeeRepository <-- AdminService
+    BackupManager <-- AdminService
+    LockManager <-- StatusService
+    LockManager <-- AdminService
+    UserContext <-- StatusService
+    StatusService <-- EditWindow
+    AdminService <-- AdminWindow
 
     MainWindow --> EditWindow
     MainWindow --> AdminWindow
