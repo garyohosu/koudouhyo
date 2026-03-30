@@ -2,10 +2,21 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Optional
 
 from koudouhyo.models import AppSettings
+
+
+def _default_config_path() -> str:
+    """Return config.json path that works both as script and PyInstaller exe."""
+    if getattr(sys, "frozen", False):
+        # Running as PyInstaller bundle: look next to the exe
+        return str(Path(sys.executable).parent / "config.json")
+    else:
+        # Running as script: project root (4 levels up from this file)
+        return str(Path(__file__).parent.parent.parent.parent / "config.json")
 
 
 class ConfigLoader:
@@ -15,7 +26,7 @@ class ConfigLoader:
         if config_path is not None:
             self._config_path = config_path
         else:
-            self._config_path = str(Path(__file__).parent.parent.parent.parent / self.CURRENT_DIR_CONFIG)
+            self._config_path = _default_config_path()
 
     def load(self) -> AppSettings:
         """Load configuration from JSON file and return AppSettings.
