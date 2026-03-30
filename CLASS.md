@@ -151,6 +151,7 @@ classDiagram
         +load() AppSettings
         +get_shared_root() str
         +get_admin_users() list~str~
+        note: config_path = app\\current\\config.json
     }
 
     class AppSettings {
@@ -173,7 +174,8 @@ classDiagram
         -str lock_path
         -str session_lock_id
         -UserContext user
-        -Timer _heartbeat_timer
+        -Thread _heartbeat_thread
+        -Event _stop_event
         +try_acquire() bool
         +release() None
         +is_locked() bool
@@ -182,8 +184,10 @@ classDiagram
         +force_release_if_admin(list~str~) bool
         -_start_heartbeat() None
         -_stop_heartbeat() None
+        -_heartbeat_loop() None
         -_update_timestamp() None
         -_is_own_lock() bool
+        note: heartbeat=専用スレッド+停止イベント
     }
 
     class BackupManager {
@@ -227,7 +231,7 @@ classDiagram
 
 ---
 
-## 4. UI層
+## 4. UI層（Tkinter）
 
 ```mermaid
 classDiagram
