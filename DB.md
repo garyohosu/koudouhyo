@@ -170,6 +170,9 @@ ON status_history(updated_at);
 - 内線番号は employee_master の固定情報として扱う
 - 出社状態と所在状態は分離して保持する
 - current_status の更新は INSERT ではなく既存レコードに対する UPDATE を基本とする
+- 状態更新時は status_history への INSERT と current_status への UPDATE を同一トランザクションで実行する
+- 新規社員追加時は employee_master への INSERT と current_status 初期レコード作成を同一トランザクションで実行する
+- 途中でいずれかのSQLが失敗した場合はロールバックし、部分更新を残さない
 - 社員の削除は物理削除せず is_active=0 の論理削除とする（外部キー整合性維持のため）
 
 ## 10. スキーマバージョン管理

@@ -83,7 +83,7 @@ sequenceDiagram
             Note over App: 管理者のみ解除可能（後述）
         end
     else ロックファイルが存在しない
-        App->>FS: edit.lock を作成（利用者名・PC名・開始時刻・版数を記録）
+        App->>FS: edit.lock を作成（利用者名・PC名・開始時刻・版数・lock_id(UUID) を記録）
         App-->>User: 編集画面を表示
 
         loop 5分ごと（編集中）
@@ -93,13 +93,24 @@ sequenceDiagram
         User->>App: 対象社員を選択し状態を入力
         User->>App: 保存ボタンをクリック
 
+        App->>DB: BEGIN TRANSACTION
         App->>DB: status_history に変更前データを INSERT
         App->>DB: current_status を UPDATE（updated_by=Windowsログオンユーザー名）
-        DB-->>App: 保存完了
-
-        App->>FS: edit.lock を削除
-        App->>DB: 社員一覧・現在状態を再取得
-        App-->>User: メイン画面へ戻る（一覧更新済み）
+        alt 保存成功
+            App->>DB: COMMIT
+            DB-->>App: 保存完了
+            App->>FS: edit.lock を読み込み、lock_id を確認
+            alt 自セッションの lock_id と一致
+                App->>FS: edit.lock を削除
+            else 一致しない
+                Note over App,FS: 他セッションのロックとみなし削除しない
+            end
+            App->>DB: 社員一覧・現在状態を再取得
+            App-->>User: メイン画面へ戻る（一覧更新済み）
+        else 保存失敗
+            App->>DB: ROLLBACK
+            App-->>User: エラーメッセージを表示
+        end
     end
 ```
 
@@ -119,7 +130,12 @@ sequenceDiagram
         User->>App: ウィンドウを閉じる
     end
 
-    App->>FS: edit.lock を削除
+    App->>FS: edit.lock を読み込み、lock_id を確認
+    alt 自セッションの lock_id と一致
+        App->>FS: edit.lock を削除
+    else 一致しない
+        Note over App,FS: 他セッションのロックとみなし削除しない
+    end
     App-->>User: メイン画面へ戻る（またはアプリ終了）
 ```
 
@@ -135,7 +151,7 @@ sequenceDiagram
     participant CF as config.json
 
     Admin->>App: 編集ボタンをクリック
-    App->>FS: edit.lock の存在・更新時刻を確認
+    App->>FS: edit.lock の内容・更新時刻を確認
     Note over App: 更新時刻から60分以上経過 → 期限切れ
     App->>CF: admin_users を確認
     CF-->>App: 管理者ユーザー名一覧
@@ -143,8 +159,8 @@ sequenceDiagram
     alt 現在のWindowsログオンユーザーが admin_users に含まれる
         App-->>Admin: 「期限切れロックがあります。解除しますか？」
         Admin->>App: 解除を承認
-        App->>FS: edit.lock を削除
-        App->>FS: 新しい edit.lock を作成
+        App->>FS: 現在のロック内容を確認した上で edit.lock を削除
+        App->>FS: 新しい edit.lock を作成（lock_id(UUID) を含む）
         App-->>Admin: 編集画面を表示
     else 管理者でない
         App-->>Admin: 「期限切れロックがあります。管理者に解除を依頼してください。」
@@ -170,16 +186,30 @@ sequenceDiagram
     Admin->>App: 社員情報を編集（氏名・所属・内線・表示順・使用中フラグ）
     Admin->>App: 保存ボタンをクリック
 
+    App->>FS: 通常の状態更新と同じ手順で edit.lock を取得
     App->>FS: バックアップ作成（koudouhyo_YYYYMMDD_HHMMSS.db）
     App->>DB: PRAGMA foreign_keys = ON
-    App->>DB: employee_master を UPDATE
-    DB-->>App: 保存完了
-
-    App-->>Admin: メイン画面へ戻る
-
+    App->>DB: BEGIN TRANSACTION
     alt 新規社員追加の場合
+        App->>DB: employee_master を INSERT
         App->>DB: current_status に初期レコードを INSERT
         Note over App,DB: 出社中・在席・行先空・備考空
+    else 既存社員更新の場合
+        App->>DB: employee_master を UPDATE
+    end
+    alt 保存成功
+        App->>DB: COMMIT
+        DB-->>App: 保存完了
+        App->>FS: edit.lock を読み込み、lock_id を確認
+        alt 自セッションの lock_id と一致
+            App->>FS: edit.lock を削除
+        else 一致しない
+            Note over App,FS: 他セッションのロックとみなし削除しない
+        end
+        App-->>Admin: メイン画面へ戻る
+    else 保存失敗
+        App->>DB: ROLLBACK
+        App-->>Admin: エラーメッセージを表示
     end
 ```
 
