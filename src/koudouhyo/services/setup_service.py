@@ -22,19 +22,30 @@ def ensure_shared_dirs(app_settings: AppSettings) -> None:
         (root / d).mkdir(parents=True, exist_ok=True)
 
 
-def is_running_from_current(app_settings: AppSettings) -> bool:
-    """Return True if this exe is already running from app\\current\\."""
+def is_running_from_unc() -> bool:
+    """Return True if this exe is running from a UNC path (\\\\server\\...)."""
     if not getattr(sys, "frozen", False):
-        return True  # Running as script, skip deployment check
+        return False
+    return Path(sys.executable).drive == ""  # UNC paths have no drive letter
+
+
+def is_running_from_current(app_settings: AppSettings) -> bool:
+    """Return True if this exe is running from app\\current\\ on the shared folder."""
+    if not getattr(sys, "frozen", False):
+        return False
     exe_path = Path(sys.executable).resolve()
     current_path = (Path(app_settings.shared_root) / "app" / "current").resolve()
-    return exe_path.parent == current_path
+    try:
+        exe_path.relative_to(current_path)
+        return True
+    except ValueError:
+        return False
 
 
 def deploy_to_current(app_settings: AppSettings) -> None:
-    """Copy exe and config.json to shared_root\\app\\current\\."""
+    """Copy exe and config.json to shared_root\\app\\current\\ (distribution point)."""
     if not getattr(sys, "frozen", False):
-        return  # Nothing to deploy in script mode
+        return
 
     src_exe = Path(sys.executable)
     src_cfg = src_exe.parent / "config.json"
@@ -54,15 +65,14 @@ def apply_pending_update() -> None:
     Windows allows the rename.
     """
     if not getattr(sys, "frozen", False):
-        return  # Script mode: nothing to do
+        return
 
     exe_path = Path(sys.executable)
     exe_dir = exe_path.parent
-    exe_name = exe_path.name  # e.g. Koudouhyo.exe
-    new_exe = exe_dir / (exe_path.stem + NEW_EXE_SUFFIX)  # Koudouhyo_new.exe
+    new_exe = exe_dir / (exe_path.stem + NEW_EXE_SUFFIX)
 
     if not new_exe.exists():
-        return  # No pending update
+        return
 
     bat_path = exe_dir / UPDATE_BAT_NAME
     bat_content = (
@@ -83,9 +93,9 @@ def apply_pending_update() -> None:
 
 
 def stage_update(releases_exe_path: str) -> None:
-    """Copy new exe from releases to app\\current\\ as Koudouhyo_new.exe.
+    """Copy new exe from releases to local folder as Koudouhyo_new.exe.
 
-    The swap happens on the next launch via apply_pending_update().
+    The actual swap happens on the next launch via apply_pending_update().
     """
     if not getattr(sys, "frozen", False):
         return
