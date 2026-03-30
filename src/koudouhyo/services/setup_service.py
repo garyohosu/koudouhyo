@@ -112,20 +112,29 @@ def needs_deploy(app_settings: AppSettings, local_version: str) -> bool:
 
 
 def deploy_to_current(app_settings: AppSettings, local_version: str) -> None:
-    """Copy exe and config.json to shared_root\\app\\current\\ and write version.txt."""
+    """Copy exe to shared_root\\app\\current\\ and write version.txt.
+
+    Also creates the server-side config.json at shared_root\\config.json
+    if it does not yet exist (initial setup only).
+    """
     if not getattr(sys, "frozen", False):
         return
 
     src_exe = Path(sys.executable)
-    src_cfg = src_exe.parent / "config.json"
     dst_dir = Path(app_settings.shared_root) / "app" / "current"
     dst_dir.mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(src_exe, dst_dir / src_exe.name)
-    if src_cfg.exists():
-        shutil.copy2(src_cfg, dst_dir / "config.json")
-
     _write_deployed_version(app_settings, local_version)
+
+    # Create server config.json if it doesn't exist yet
+    server_cfg = Path(app_settings.server_config_path)
+    if not server_cfg.exists():
+        import json as _json
+        server_cfg.write_text(
+            _json.dumps({"admin_users": []}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
 
 
 def apply_pending_update() -> None:

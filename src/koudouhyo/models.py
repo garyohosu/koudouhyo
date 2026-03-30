@@ -109,5 +109,10 @@ class AppSettings:
         return str(Path(self.shared_root) / "latest.json")
 
     @property
+    def server_config_path(self) -> str:
+        """Master config on the shared server (admin_users etc.)."""
+        return str(Path(self.shared_root) / "config.json")
+
+    @property
     def app_current_path(self) -> str:
         return str(Path(self.shared_root) / "app" / "current")

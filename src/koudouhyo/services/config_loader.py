@@ -1,4 +1,11 @@
-"""Configuration loader for koudouhyo application."""
+"""Configuration loader for koudouhyo application.
+
+Two-stage loading:
+1. Local config.json  : contains only shared_root (minimum to reach server)
+2. Server config.json : contains admin_users and other shared settings
+                        Located at {shared_root}\\config.json
+                        Managed by admin; shared across all clients.
+"""
 from __future__ import annotations
 
 import json
@@ -10,43 +17,56 @@ from koudouhyo.models import AppSettings
 
 
 def _default_config_path() -> str:
-    """Return config.json path that works both as script and PyInstaller exe."""
+    """Return local config.json path for both exe and script mode."""
     if getattr(sys, "frozen", False):
-        # Running as PyInstaller bundle: look next to the exe
+        # Running as PyInstaller exe: look next to the exe
         return str(Path(sys.executable).parent / "config.json")
     else:
-        # Running as script: project root (4 levels up from this file)
+        # Running as script: project root
         return str(Path(__file__).parent.parent.parent.parent / "config.json")
 
 
-class ConfigLoader:
-    CURRENT_DIR_CONFIG = "config.json"
+def _read_json(path: str) -> dict:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Config file not found: {path}")
+    with p.open("r", encoding="utf-8") as f:
+        return json.load(f)
 
+
+class ConfigLoader:
     def __init__(self, config_path: Optional[str] = None) -> None:
-        if config_path is not None:
-            self._config_path = config_path
-        else:
-            self._config_path = _default_config_path()
+        self._config_path = config_path if config_path is not None else _default_config_path()
 
     def load(self) -> AppSettings:
-        """Load configuration from JSON file and return AppSettings.
+        """Load configuration via two-stage reading.
+
+        Stage 1 – Local config.json (required):
+            { "shared_root": "\\\\server\\share\\koudouhyo" }
+
+        Stage 2 – Server config.json at {shared_root}\\config.json (optional):
+            { "admin_users": ["yamada", "suzuki"] }
+            If unreachable, admin_users defaults to [].
 
         Raises:
-            FileNotFoundError: If config file does not exist.
-            JSONDecodeError: If config file contains invalid JSON.
-            KeyError: If required keys are missing.
+            FileNotFoundError: Local config.json not found.
+            json.JSONDecodeError: Local config.json is invalid JSON.
+            KeyError: shared_root key is missing.
         """
-        path = Path(self._config_path)
-        if not path.exists():
-            raise FileNotFoundError(f"Config file not found: {self._config_path}")
-
-        with path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        if "shared_root" not in data:
+        # --- Stage 1: local config ---
+        local_data = _read_json(self._config_path)
+        if "shared_root" not in local_data:
             raise KeyError("'shared_root' is required in config.json")
+        shared_root = local_data["shared_root"]
 
-        shared_root = data["shared_root"]
-        admin_users = data.get("admin_users", [])
+        # --- Stage 2: server config (best-effort) ---
+        server_config_path = str(Path(shared_root) / "config.json")
+        server_data: dict = {}
+        try:
+            server_data = _read_json(server_config_path)
+        except (FileNotFoundError, json.JSONDecodeError):
+            pass  # Server not reachable or config not yet created → use defaults
+
+        admin_users = server_data.get("admin_users", [])
 
         return AppSettings(shared_root=shared_root, admin_users=admin_users)
