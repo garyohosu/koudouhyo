@@ -9,11 +9,12 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 
 def main():
+    from koudouhyo.version import APP_VERSION
     from koudouhyo.services.config_loader import ConfigLoader
     from koudouhyo.services.setup_service import (
         ensure_shared_dirs,
         is_running_from_unc,
-        needs_initial_deploy,
+        needs_deploy,
         deploy_to_current,
         apply_pending_update,
         stage_update,
@@ -68,14 +69,14 @@ def main():
         )
         sys.exit(1)
 
-    # --- 初回セットアップ: app\current\ に exe がなければ配布用コピーを促す ---
-    # （共有フォルダのapp\current\はあくまで配布置き場。実行はローカルから）
-    if needs_initial_deploy(app_settings):
+    # --- セットアップ / バージョンアップ: 配布用フォルダへコピー ---
+    if needs_deploy(app_settings, APP_VERSION):
         root = tk.Tk()
         root.withdraw()
         answer = mb.askyesno(
-            "初期セットアップ",
-            f"このexeを配布用フォルダへコピーしますか？\n\n"
+            "配布版の更新",
+            f"ローカルのexe（v{APP_VERSION}）が配布版より新しいです。\n\n"
+            f"配布用フォルダへコピーしますか？\n\n"
             f"コピー先（配布置き場）:\n"
             f"{app_settings.shared_root}\\app\\current\\\n\n"
             f"※ 各PCのデスクトップ等にコピーして使用してください。\n"
@@ -84,12 +85,12 @@ def main():
         root.destroy()
         if answer:
             try:
-                deploy_to_current(app_settings)
+                deploy_to_current(app_settings, APP_VERSION)
                 root2 = tk.Tk()
                 root2.withdraw()
                 mb.showinfo(
-                    "セットアップ完了",
-                    f"配布用フォルダへのコピーが完了しました。\n\n"
+                    "配布完了",
+                    f"v{APP_VERSION} を配布用フォルダへコピーしました。\n\n"
                     f"【各ユーザーへの配布手順】\n"
                     f"1. 以下のフォルダを開く\n"
                     f"   {app_settings.shared_root}\\app\\current\\\n"
@@ -105,8 +106,8 @@ def main():
                 root2.destroy()
         sys.exit(0)
 
-    # --- バージョン確認 ---
-    version_checker = VersionChecker(app_settings.update_json_path, "1.0.0")
+    # --- バージョン確認（ユーザー向け自動更新） ---
+    version_checker = VersionChecker(app_settings.update_json_path, APP_VERSION)
     result = version_checker.check()
     if result.has_update and result.latest:
         root_tmp = tk.Tk()
@@ -163,6 +164,7 @@ def main():
 
     # --- メイン画面起動 ---
     root = tk.Tk()
+    root.title(f"行動予定表 v{APP_VERSION}")
     app = MainWindow(root, app_settings, emp_repo, status_repo, lock_mgr, user_ctx)
     app.show()
 

@@ -6,6 +6,7 @@ a = Analysis(
     datas=[('config.json', '.')],
     hiddenimports=[
         'koudouhyo',
+        'koudouhyo.version',
         'koudouhyo.models',
         'koudouhyo.database',
         'koudouhyo.repositories',
