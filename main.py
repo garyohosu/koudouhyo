@@ -10,7 +10,10 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 def main():
     from koudouhyo.services.config_loader import ConfigLoader
-    from koudouhyo.services.setup_service import ensure_shared_dirs, is_running_from_current, deploy_to_current
+    from koudouhyo.services.setup_service import (
+        ensure_shared_dirs, is_running_from_current, deploy_to_current,
+        apply_pending_update, stage_update,
+    )
     from koudouhyo.database import DatabaseManager
     from koudouhyo.repositories import EmployeeRepository, StatusRepository, AppConfigRepository
     from koudouhyo.services.migration_manager import MigrationManager
@@ -19,6 +22,9 @@ def main():
     from koudouhyo.services.lock_manager import LockManager
     from koudouhyo.services.user_context import UserContext
     from koudouhyo.ui.main_window import MainWindow
+
+    # --- 起動直後: 保留中のアップデートを適用（差し替え後に再起動） ---
+    apply_pending_update()
 
     # --- 設定読み込み ---
     config_loader = ConfigLoader()
@@ -70,8 +76,24 @@ def main():
     if result.has_update and result.latest:
         root_tmp = tk.Tk()
         root_tmp.withdraw()
-        mb.showinfo("アップデート", f"新しいバージョン {result.latest.version} が利用可能です。\n管理者に確認してください。")
+        answer = mb.askyesno(
+            "アップデート",
+            f"新しいバージョン {result.latest.version} が利用可能です。\n"
+            f"次回起動時に自動で適用しますか？\n\n更新内容: {result.latest.notes}"
+        )
         root_tmp.destroy()
+        if answer:
+            try:
+                stage_update(result.latest.path)
+                root_tmp2 = tk.Tk()
+                root_tmp2.withdraw()
+                mb.showinfo("準備完了", "次回起動時に新バージョンが適用されます。")
+                root_tmp2.destroy()
+            except Exception as e:
+                root_tmp2 = tk.Tk()
+                root_tmp2.withdraw()
+                mb.showerror("更新エラー", f"新バージョンの取得に失敗しました:\n{e}")
+                root_tmp2.destroy()
 
     # --- DB 初期化・マイグレーション ---
     db = DatabaseManager(app_settings.db_path)
